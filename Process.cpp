@@ -1,21 +1,27 @@
-#include <iostream>
-#include <fstream>
-#include <vector>
-#include <queue>
+#include "Process.h"
 
-using namespace std;
 
-class Process {
-public:
-    int pid;
-    int arrivalTime;
-    int burstTime;
-    int priority;
-    int startTime;
-    int finishTime;
-    int remainingTime;
 
-    Process(int p, int at, int bt, int pr)
-        : pid(p), arrivalTime(at), burstTime(bt), priority(pr), remainingTime(bt) {}
+
+Process::Process(string  p, int at, int bt, int pr){
+
+	this->pid = p; 
+	this->arrivalTime = at;
+	this->burstTime = bt;
+	this->remainingTime = bt;
+	this->priority = pr;
+	this->startTime = -1; 
+	this->finishTime = -1; 
+	this->waitingTime = -1;  
+	this->turnaroundTime = -1; 
+	          
+	          
+}
+
+// Método para imprimir la información del proceso
+void Process::printInfo() {
+	printf("Process ID: %s, Arrival Time: %d, Burst Time: %d, Priority: %d, Start Time: %d, Finish Time: %d\n",  
+			pid, arrivalTime, remainingTime, priority, startTime, finishTime);
+
 };
 

@@ -2,37 +2,27 @@
 #include <fstream>
 #include <vector>
 #include <queue>
+#include <string>
 #include <algorithm> 
 
-using namespace std;
-int quantum;
+#include "Process.h"
 
-class Process {
-	public:
-	    int pid;
-	    int arrivalTime;
-	    int burstTime;
-	    int burstTimeAUX;
-	    int priority;
-	    int startTime;
-	    int finishTime;
-	    int remainingTime;
-	
-	    Process(int p, int at, int bt, int pr)
-	        : pid(p), arrivalTime(at), burstTime(bt), priority(pr),
-	          startTime(-1), finishTime(-1), remainingTime(-1), burstTimeAUX(bt) {}
-	          
-	    // Método para imprimir la información del proceso
-	    void printInfo() const {
-	        printf("Process ID: %d, Arrival Time: %d, Burst Time: %d, Priority: %d, Start Time: %d, Finish Time: %d\n",
-	               pid, arrivalTime, burstTime, priority, startTime, finishTime);
-	    }
-};
-       
-queue<Process> fcfsQueue;
-queue<Process> rrQueue;
-vector<Process> listProcess;
-    
+using namespace std;
+
+// Variables globales para el quantum y la lista de procesos
+int quantum;
+vector<Process> listProcess;  // Lista de procesos leídos del archivo
+queue<Process> fcfsQueue;     // Cola para los procesos con prioridad baja (FCFS)
+queue<Process> rrQueue;       // Cola para los procesos con prioridad alta (RR)
+
+
+// Prototipos de funciones
+bool compareByArrivalTime(const Process& a, const Process& b);
+void arrColasMLQ();
+void arrColasMLFQ();
+void MLQ();
+void MLFQ();
+
 // Comparador para ordenar por arrivalTime
 bool compareByArrivalTime(const Process& a, const Process& b) {
     return a.arrivalTime < b.arrivalTime;
@@ -47,19 +37,21 @@ bool compareByArrivalTime(const Process& a, const Process& b) {
 //    }
 //}
 
-// Separa los procesos en las colas correspondientes 
-void arrColas(){
+// Esta función organiza los procesos en las colas de MLQ
+void arrColasMLQ(){
 	// Creacion de vectores y colas 
 	vector<Process> rrQueueAUX;
 	vector<Process> fcfsQueueAUX;
-	// Dividir los procesos en los vectores correspondientes
+	
+	// Separar los procesos en los vectores correspondientes según su prioridad
     for (const auto& process : listProcess) {
         if (process.priority == 0) {
-            rrQueueAUX.push_back(process);
+            rrQueueAUX.push_back(process);  // Prioridad 0, van a Round Robin
         } else if (process.priority == 1) {
-            fcfsQueueAUX.push_back(process);
+            fcfsQueueAUX.push_back(process); // Prioridad 1, van a FCFS
         }
     }
+    
 	// Ordenar vectores por arrivalTime
     sort(rrQueueAUX.begin(), rrQueueAUX.end(), compareByArrivalTime);
     sort(fcfsQueueAUX.begin(), fcfsQueueAUX.end(), compareByArrivalTime);
@@ -71,112 +63,94 @@ void arrColas(){
 	for (const auto& process : rrQueueAUX) {
 	    rrQueue.push(process);
 	}
-	
-//	// Imprimir las colas
-//    printf("FCFS Queue:\n");
-//    printQueue(fcfsQueue);
-//
-//    printf("RR Queue:\n");
-//    printQueue(rrQueue);
-
-//    // Imprimir los procesos en rrQueueAUX
-//    cout << "RR Queue AUX:\n";
-//    for (const auto& process : rrQueueAUX) {
-//        process.printInfo();
-//    }
-//
-//    // Imprimir los procesos en fcfsQueueAUX
-//    cout << "FCFS Queue AUX:\n";
-//    for (const auto& process : fcfsQueueAUX) {
-//        process.printInfo();
-//    }
-	
+		
 }
 
-
-
-
+// Algoritmo MLQ (Multilevel Queue)
 void MLQ(){
 	
-	int currentTime;
+	int currentTime = 0;
     int totalProcesses = listProcess.size();
     int completedProcesses = 0;
     int wtALL = 0;
     int tatALL = 0;
-    
     float wtMID = 0.0;
     float tatMID = 0.0;
-    
-    if (rrQueue.front().arrivalTime <=  fcfsQueue.front().arrivalTime){
-    	currentTime = rrQueue.front().arrivalTime;
-	}
-	else{
-		currentTime = fcfsQueue.front().arrivalTime;
-	}
-	 
-	
+    	
 	while (completedProcesses < totalProcesses) {
 
-    if (!rrQueue.empty()) {
-        Process currentProcess = rrQueue.front();
-        if (currentProcess.arrivalTime <= currentTime) {
-            rrQueue.pop();
-            if (currentProcess.startTime == -1) {
-                currentProcess.startTime = currentTime;  // Registrar tiempo de inicio
-            }
- 
-            if (currentProcess.burstTime > quantum) {
-                currentTime += quantum;
-                currentProcess.burstTime -= quantum; 
-                rrQueue.push(currentProcess);  // Si no terminó, vuelve a la cola
-            }
+	    if (!rrQueue.empty()) {
+	        Process currentProcess = rrQueue.front();
+	        if (currentProcess.arrivalTime <= currentTime) {
+	            rrQueue.pop();
+	            // Registrar el tiempo de inicio si es la primera vez que ejecuta
+	            if (currentProcess.startTime == -1) {
+	                currentProcess.startTime = currentTime;  
+	 			}
+	            if (currentProcess.remainingTime > quantum) {
+	                currentTime += quantum;
+	                currentProcess.remainingTime -= quantum; 
+	                rrQueue.push(currentProcess);  // Si no terminó, vuelve a la cola
+	            }
+				else {
+	                currentTime += currentProcess.remainingTime;
+	                currentProcess.finishTime = currentTime;  // Registrar tiempo de finalización
+	                currentProcess.waitingTime = (currentTime - currentProcess.burstTime - currentProcess.arrivalTime);
+	                currentProcess.turnaroundTime = (currentTime - currentProcess.arrivalTime);
+	                wtALL += currentProcess.waitingTime; 
+	                tatALL += currentProcess.turnaroundTime; 
+	                completedProcesses++;
+	                printf("Process %s | (RR)   | RT %d | CT %d | WT %d | TAT  %d | \n", 
+						currentProcess.pid.c_str(), currentProcess.startTime, currentProcess.finishTime, currentProcess.waitingTime, currentProcess.turnaroundTime);
+	            }
+	        }
+			else if (!fcfsQueue.empty() && fcfsQueue.front().arrivalTime <= currentTime) {
+				// Si hay procesos en la cola de FCFS y están listos para ejecutarse
+	            Process currentProcess = fcfsQueue.front();
+	            fcfsQueue.pop();
+	            currentProcess.startTime = currentTime;  
+	            currentTime += currentProcess.remainingTime;
+	            currentProcess.finishTime = currentTime; 
+	            currentProcess.waitingTime = (currentTime - currentProcess.burstTime - currentProcess.arrivalTime);
+	            currentProcess.turnaroundTime = (currentTime - currentProcess.arrivalTime);
+	            wtALL += currentProcess.waitingTime; 
+	            tatALL += currentProcess.turnaroundTime; 
+	            completedProcesses++;
+	            printf("Process %s | (FCFS) | RT %d | CT %d | WT %d | TAT  %d | \n", 
+					currentProcess.pid.c_str(), currentProcess.startTime, currentProcess.finishTime, currentProcess.waitingTime, currentProcess.turnaroundTime);
+	            
+	        }
 			else {
-                currentTime += currentProcess.burstTime;
-                currentProcess.finishTime = currentTime;  // Registrar tiempo de finalización
-                wtALL += (currentTime - currentProcess.burstTimeAUX - currentProcess.arrivalTime);
-                tatALL += (currentTime - currentProcess.arrivalTime);
-                completedProcesses++;
-                printf("Process %d (RR) start at time %d finished at time %d\n", currentProcess.pid, currentProcess.startTime, currentProcess.finishTime);
-            }
-        }
-		else if (!fcfsQueue.empty() && fcfsQueue.front().arrivalTime <= currentTime) {
-            Process currentProcess = fcfsQueue.front();
-            fcfsQueue.pop();
-            
-            if (currentProcess.startTime == -1) {
-                currentProcess.startTime = currentTime;  // Registrar tiempo de inicio
-            }
-            currentTime += currentProcess.burstTime;
-            currentProcess.finishTime = currentTime;  // Registrar tiempo de finalización
-            
-            wtALL += (currentTime - currentProcess.burstTimeAUX - currentProcess.arrivalTime);
-            tatALL += (currentTime - currentProcess.arrivalTime);
-            completedProcesses++;
-            printf("Process %d (FCFS) start at time %d finished at time %d\n", currentProcess.pid, currentProcess.startTime, currentProcess.finishTime);
-        }
-		else {
-            // Si no hay procesos listos, avanzar el tiempo hasta que llegue el siguiente proceso
-            if (!rrQueue.empty() && rrQueue.front().arrivalTime > currentTime) {
-                currentTime = rrQueue.front().arrivalTime;
-            } else if (!fcfsQueue.empty() && fcfsQueue.front().arrivalTime > currentTime) {
-                currentTime = fcfsQueue.front().arrivalTime;
-            }
-        }
-    }
-	else if (!fcfsQueue.empty()) {
-        Process fcfsProcess = fcfsQueue.front();
-        if (fcfsProcess.arrivalTime <= currentTime) {
-            fcfsQueue.pop();
-            fcfsProcess.startTime = currentTime;  // Registrar tiempo de inicio
-            currentTime += fcfsProcess.burstTime;
-            fcfsProcess.finishTime = currentTime;  // Registrar tiempo de finalización
-            
-            wtALL += (currentTime - fcfsProcess.burstTimeAUX - fcfsProcess.arrivalTime);
-            tatALL += (currentTime - fcfsProcess.arrivalTime);
-            completedProcesses++;
-            printf("Process %d (FCFS) start at time %d finished at time %d\n", fcfsProcess.pid, fcfsProcess.startTime, fcfsProcess.finishTime);
-        }
-    }
+	            // Si no hay procesos listos, avanzar el tiempo hasta que llegue el siguiente proceso
+	            currentTime ++;
+	        }
+	    }
+		else if (!fcfsQueue.empty()) {
+	        Process fcfsProcess = fcfsQueue.front();
+	        if (fcfsProcess.arrivalTime <= currentTime) {
+	            fcfsQueue.pop();
+	            fcfsProcess.startTime = currentTime;  // Registrar tiempo de inicio
+	            currentTime += fcfsProcess.remainingTime;
+	            fcfsProcess.finishTime = currentTime;  // Registrar tiempo de finalización
+	            
+	            fcfsProcess.waitingTime = (currentTime - fcfsProcess.burstTime - fcfsProcess.arrivalTime);
+	            fcfsProcess.turnaroundTime = (currentTime - fcfsProcess.arrivalTime);
+	            wtALL += fcfsProcess.waitingTime; 
+	            tatALL += fcfsProcess.turnaroundTime; 
+	            completedProcesses++;
+	            printf("Process %s | (FCFS) | RT %d | CT %d | WT %d | TAT  %d | \n", 
+					fcfsProcess.pid.c_str(), fcfsProcess.startTime, fcfsProcess.finishTime, fcfsProcess.waitingTime, fcfsProcess.turnaroundTime);
+	            
+	        }
+	        else {
+	            // Si no hay procesos listos, avanzar el tiempo hasta que llegue el siguiente proceso
+	            currentTime ++;
+	        }
+	    }
+	    else {
+	            // Si no hay procesos listos, avanzar el tiempo hasta que llegue el siguiente proceso
+	            currentTime ++;
+	        }
 }
 
 	    
@@ -188,6 +162,101 @@ void MLQ(){
 		
 }
 
+void arrColasMLFQ(){
+	
+	sort(listProcess.begin(), listProcess.end(), compareByArrivalTime);
+	for (const auto& process : listProcess) {
+	    rrQueue.push(process);
+	}
+}
+
+void MLFQ(){
+	
+	int currentTime = 0;
+    int totalProcesses = listProcess.size();
+    int completedProcesses = 0;
+    int wtALL = 0;
+    int tatALL = 0;
+    float wtMID = 0.0;
+    float tatMID = 0.0;
+    	
+	while (completedProcesses < totalProcesses) {
+
+	    if (!rrQueue.empty()) {
+	        Process currentProcess = rrQueue.front();
+	        if (currentProcess.arrivalTime <= currentTime) {
+	            rrQueue.pop();
+	            if (currentProcess.startTime == -1) {
+	                currentProcess.startTime = currentTime;  // Registrar tiempo de inicio cuando incia por primera vez el proceso
+	            }
+	            if (currentProcess.remainingTime > quantum) {
+	                currentTime += quantum;
+	                currentProcess.remainingTime -= quantum; 
+	                fcfsQueue.push(currentProcess);  // Si no terminó, vuelve a la cola
+	            }
+				else {
+	                currentTime += currentProcess.remainingTime;
+	                currentProcess.finishTime = currentTime;  // Registrar tiempo de finalización
+	                currentProcess.waitingTime = (currentTime - currentProcess.burstTime - currentProcess.arrivalTime);
+	                currentProcess.turnaroundTime = (currentTime - currentProcess.arrivalTime);
+	                wtALL += currentProcess.waitingTime; 
+	                tatALL += currentProcess.turnaroundTime; 
+	                completedProcesses++;
+	                printf("Process %s | (RR)   | RT %d | CT %d | WT %d | TAT  %d | \n", 
+						currentProcess.pid.c_str(), currentProcess.startTime, currentProcess.finishTime, currentProcess.waitingTime, currentProcess.turnaroundTime);
+	            }
+	        }
+			else if (!fcfsQueue.empty() && fcfsQueue.front().arrivalTime <= currentTime) {
+	            Process currentProcess = fcfsQueue.front();
+	            fcfsQueue.pop();
+	            currentTime += currentProcess.remainingTime;
+	            currentProcess.finishTime = currentTime;  // Registrar tiempo de finalización
+	            currentProcess.waitingTime = (currentTime - currentProcess.burstTime - currentProcess.arrivalTime);
+	            currentProcess.turnaroundTime = (currentTime - currentProcess.arrivalTime);
+	            wtALL += currentProcess.waitingTime; 
+	            tatALL += currentProcess.turnaroundTime; 
+	            completedProcesses++;
+	            printf("Process %s | (FCFS) | RT %d | CT %d | WT %d | TAT  %d | \n", 
+					currentProcess.pid.c_str(), currentProcess.startTime, currentProcess.finishTime, currentProcess.waitingTime, currentProcess.turnaroundTime);
+	        }
+			else {
+	            // Si no hay procesos listos, avanzar el tiempo hasta que llegue el siguiente proceso
+	            currentTime ++;
+	        }
+	    }
+		else if (!fcfsQueue.empty()) {
+	        Process fcfsProcess = fcfsQueue.front();
+	        if (fcfsProcess.arrivalTime <= currentTime) {
+	            fcfsQueue.pop();
+	           
+	            currentTime += fcfsProcess.remainingTime;
+	            fcfsProcess.finishTime = currentTime;  // Registrar tiempo de finalización
+	            
+	            fcfsProcess.waitingTime = (currentTime - fcfsProcess.burstTime - fcfsProcess.arrivalTime);
+	            fcfsProcess.turnaroundTime = (currentTime - fcfsProcess.arrivalTime);
+	            wtALL += fcfsProcess.waitingTime; 
+	            tatALL += fcfsProcess.turnaroundTime; 
+	            completedProcesses++;
+	            printf("Process %s | (FCFS) | RT %d | CT %d | WT %d | TAT  %d | \n", 
+					fcfsProcess.pid.c_str(), fcfsProcess.startTime, fcfsProcess.finishTime, fcfsProcess.waitingTime, fcfsProcess.turnaroundTime);
+	            
+	        }
+	        else {
+	            // Si no hay procesos listos, avanzar el tiempo hasta que llegue el siguiente proceso
+	            currentTime ++;
+	        }
+	    }
+	    
+	}
+
+	    
+	wtMID = (float)wtALL / totalProcesses;
+	tatMID = (float)tatALL / totalProcesses;
+	
+	printf("The average waiting time is %.1f\n", wtMID);
+	printf("The average turnaround time is %.1f\n", tatMID);
+	
+}
 
 int main(){
 	string nameFile; 
@@ -201,15 +270,44 @@ int main(){
             return 404;  
         }
         else {
+        	
+        	listProcess.clear();    
         	cout << "Ingrese el quantum: ";
         	cin >> quantum;
-        	int pid, arrivalTime, burstTime, priority;
+        	string  pid;
+        	int  arrivalTime, burstTime, priority;
             while (file >> pid >> arrivalTime >> burstTime >> priority) {
 	    		Process newProcess(pid, arrivalTime, burstTime, priority);
 				listProcess.push_back(newProcess);
 			}
-			arrColas();
-			MLQ();
+			int option;
+            do {
+                cout << "Seleccione el algoritmo que desea ejecutar:\n";
+                cout << "1. MLQ (Multilevel Queue)\n";
+                cout << "2. MLFQ (Multilevel Feedback Queue)\n";
+                cout << "0. Salir\n";
+                cout << "Opcion: ";
+                cin >> option;
+
+                switch (option) {
+                    case 1:
+                        arrColasMLQ();
+                        MLQ();
+                        break;
+                    case 2:
+                        arrColasMLFQ();
+                        MLFQ();
+                        break;
+                    case 0:
+                        cout << "Saliendo...\n";
+                        break;
+                    default:
+                        cout << "Opción no válida, por favor intente nuevamente.\n";
+                        break;
+                }
+            } while (option != 0);
+
+			
         }
     } while (nameFile != "0.txt");
 	
